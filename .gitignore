@@ -1,0 +1,47 @@
+# Models (too large for git)
+models/*.gguf
+models/*.bin
+models/*.safetensors
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Data and logs
+data/
+logs/*.log
+*.db
+*.sqlite
+
+# Documents
+documents/*.pdf
+documents/*.txt
+documents/*.docx
+!documents/README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+*.env
+
+# System
+.DS_Store
+Thumbs.db
+
+# ChromaDB
+chroma_db/
