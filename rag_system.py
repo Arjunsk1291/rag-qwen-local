@@ -32,7 +32,7 @@ class LocalRAGSystem:
     
     def __init__(
         self,
-        model_path: str = "models/qwen2.5-7b-instruct-q4_k_m.gguf",
+        model_path: str = "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         n_gpu_layers: int = 35,  # Optimized for GTX 1660 Ti 6GB
         n_ctx: int = 4096,

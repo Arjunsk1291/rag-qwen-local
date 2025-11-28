@@ -16,7 +16,7 @@ def test_initialization():
     
     start = time.time()
     rag = LocalRAGSystem(
-        model_path="models/qwen2.5-7b-instruct-q4_k_m.gguf",
+        model_path="models/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
         n_gpu_layers=35,
         verbose=True
     )
