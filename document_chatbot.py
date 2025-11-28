@@ -6,8 +6,7 @@ Hardware-optimized for GTX 1660 Ti (6GB VRAM)
 import gradio as gr
 from rag_system import LocalRAGSystem
 from pathlib import Path
-import os
-from typing import List, Tuple
+from typing import List, Dict
 
 class DocumentChatbot:
     """Interactive document chatbot with web interface."""
@@ -15,7 +14,6 @@ class DocumentChatbot:
     def __init__(self):
         """Initialize the chatbot."""
         self.rag = None
-        self.chat_history = []
         
     def initialize_rag(self) -> str:
         """Initialize RAG system."""
@@ -26,17 +24,15 @@ class DocumentChatbot:
                 verbose=False
             )
             stats = self.rag.get_stats()
-            return f"""
-✅ System Initialized Successfully!
+            return f"""✅ System Initialized Successfully!
 
-📊 **System Statistics:**
+📊 System Statistics:
 - Model: {stats['model']} ({stats['quantization']})
 - Documents Loaded: {stats['total_documents']} chunks
 - GPU: {stats['hardware']['gpu']} ({stats['hardware']['vram']})
-- Embedding Model: {stats['embedding_model']}
+- Embedding: {stats['embedding_model']}
 
-You can now upload documents and start chatting!
-            """
+Ready to upload documents and answer questions!"""
         except Exception as e:
             return f"❌ Error initializing system: {str(e)}"
     
@@ -49,39 +45,42 @@ You can now upload documents and start chatting!
             return "❌ No file selected"
         
         try:
-            # Get the file path
             file_path = file.name
-            
-            # Ingest document
             num_chunks = self.rag.ingest_document(file_path)
-            
             stats = self.rag.get_stats()
             
-            return f"""
-✅ Document Uploaded Successfully!
+            return f"""✅ Document Uploaded Successfully!
 
-📄 **File:** {Path(file_path).name}
-📦 **Chunks Created:** {num_chunks}
-📊 **Total Documents in System:** {stats['total_documents']} chunks
+📄 File: {Path(file_path).name}
+📦 Chunks: {num_chunks}
+📊 Total in DB: {stats['total_documents']} chunks
 
-You can now ask questions about this document!
-            """
+You can now ask questions!"""
         except Exception as e:
-            return f"❌ Error uploading document: {str(e)}"
+            return f"❌ Error: {str(e)}"
     
-    def chat(
-        self, 
-        message: str, 
-        history: List[Tuple[str, str]]
-    ) -> Tuple[List[Tuple[str, str]], str]:
-        """Handle chat messages."""
+    def chat(self, message: str, history: List[Dict]) -> List[Dict]:
+        """Handle chat messages with proper message format."""
         if self.rag is None:
-            response = "❌ Please initialize the system first!"
-            history.append((message, response))
-            return history, ""
+            # Return history with error message
+            history.append({
+                "role": "user",
+                "content": message
+            })
+            history.append({
+                "role": "assistant",
+                "content": "❌ Please initialize the system first by clicking '🚀 Initialize System' button!"
+            })
+            return history
         
         if not message.strip():
-            return history, message
+            return history
+        
+        # Add user message
+        history.append({
+            "role": "user",
+            "content": message
+        })
         
         try:
             # Query the RAG system
@@ -93,21 +92,27 @@ You can now ask questions about this document!
             
             response = result['answer']
             
-            # Add sources information
+            # Add source info
             if result['num_contexts'] > 0:
                 response += f"\n\n📚 *Retrieved from {result['num_contexts']} document chunks*"
             
-            history.append((message, response))
-            return history, ""
+            # Add assistant message
+            history.append({
+                "role": "assistant",
+                "content": response
+            })
             
         except Exception as e:
-            response = f"❌ Error: {str(e)}"
-            history.append((message, response))
-            return history, ""
+            # Add error message
+            history.append({
+                "role": "assistant",
+                "content": f"❌ Error: {str(e)}"
+            })
+        
+        return history
     
     def clear_chat(self):
         """Clear chat history."""
-        self.chat_history = []
         return []
     
     def get_system_info(self) -> str:
@@ -116,13 +121,12 @@ You can now ask questions about this document!
             return "❌ System not initialized"
         
         stats = self.rag.get_stats()
-        return f"""
-## 🖥️ System Information
+        return f"""## 🖥️ System Information
 
 **Model Configuration:**
 - Model: {stats['model']}
 - Quantization: {stats['quantization']}
-- Model Size: {stats['model_size']}
+- Size: {stats['model_size']}
 
 **Hardware:**
 - GPU: {stats['hardware']['gpu']}
@@ -135,29 +139,25 @@ You can now ask questions about this document!
 - Dimension: {stats['embedding_dimension']}
 
 **Knowledge Base:**
-- Total Chunks: {stats['total_documents']}
-        """
+- Total Chunks: {stats['total_documents']}"""
 
 def create_interface():
     """Create Gradio interface."""
     chatbot_instance = DocumentChatbot()
     
-    with gr.Blocks(
-        title="Document Chatbot",
-        theme=gr.themes.Soft()
-    ) as demo:
+    with gr.Blocks(title="Document Chatbot") as demo:
         
         gr.Markdown("""
         # 📚 Document Chatbot
         ### Chat with your documents using local AI
         
-        **Hardware-optimized for NVIDIA GTX 1660 Ti**  
-        Powered by Qwen2.5-7B-Instruct (Q4_K_M quantization)
+        **Hardware:** NVIDIA GTX 1660 Ti | **Model:** Qwen2.5-7B-Instruct (Q4_K_M)
         """)
         
         with gr.Row():
+            # Left column - Controls
             with gr.Column(scale=1):
-                gr.Markdown("## ⚙️ Setup")
+                gr.Markdown("## ⚙️ System Setup")
                 
                 init_btn = gr.Button(
                     "🚀 Initialize System",
@@ -165,32 +165,38 @@ def create_interface():
                     size="lg"
                 )
                 init_output = gr.Textbox(
-                    label="Initialization Status",
-                    lines=10,
-                    interactive=False
+                    label="Status",
+                    lines=8,
+                    interactive=False,
+                    show_label=False
                 )
                 
-                gr.Markdown("## 📤 Upload Documents")
+                gr.Markdown("---")
+                gr.Markdown("## 📤 Upload Document")
                 
                 file_upload = gr.File(
-                    label="Select Document",
+                    label="Select File",
                     file_types=[".pdf", ".docx", ".txt"]
                 )
-                upload_btn = gr.Button("Upload Document")
+                upload_btn = gr.Button("📥 Upload", size="lg")
                 upload_output = gr.Textbox(
                     label="Upload Status",
                     lines=6,
-                    interactive=False
+                    interactive=False,
+                    show_label=False
                 )
                 
+                gr.Markdown("---")
                 gr.Markdown("## ℹ️ System Info")
-                info_btn = gr.Button("Show System Info")
+                info_btn = gr.Button("📊 Show Stats")
                 info_output = gr.Markdown()
             
+            # Right column - Chat
             with gr.Column(scale=2):
-                gr.Markdown("## 💬 Chat")
+                gr.Markdown("## 💬 Chat Interface")
                 
                 chatbot = gr.Chatbot(
+                    type="messages",  # Use messages format
                     height=500,
                     label="Conversation",
                     show_label=False
@@ -198,21 +204,21 @@ def create_interface():
                 
                 with gr.Row():
                     msg = gr.Textbox(
-                        label="Your Message",
+                        label="Message",
                         placeholder="Ask a question about your documents...",
-                        scale=4
+                        scale=5,
+                        show_label=False
                     )
                     submit_btn = gr.Button("Send", variant="primary", scale=1)
                 
-                with gr.Row():
-                    clear_btn = gr.Button("Clear Chat")
+                clear_btn = gr.Button("🗑️ Clear Chat")
                 
                 gr.Markdown("""
-                ### 💡 Tips:
-                - Initialize the system before uploading documents
-                - Supports PDF, DOCX, and TXT files
-                - Ask specific questions for best results
-                - The AI answers strictly based on uploaded documents
+                ### 💡 Quick Guide:
+                1. Click **Initialize System** (takes ~15 seconds)
+                2. **Upload** a PDF, DOCX, or TXT file
+                3. **Ask questions** about the document
+                4. The AI answers based **only** on uploaded content
                 """)
         
         # Event handlers
@@ -227,16 +233,23 @@ def create_interface():
             outputs=upload_output
         )
         
+        # Chat handlers
         submit_btn.click(
             fn=chatbot_instance.chat,
             inputs=[msg, chatbot],
-            outputs=[chatbot, msg]
+            outputs=chatbot
+        ).then(
+            lambda: "",  # Clear input after sending
+            outputs=msg
         )
         
         msg.submit(
             fn=chatbot_instance.chat,
             inputs=[msg, chatbot],
-            outputs=[chatbot, msg]
+            outputs=chatbot
+        ).then(
+            lambda: "",  # Clear input after sending
+            outputs=msg
         )
         
         clear_btn.click(
@@ -252,7 +265,15 @@ def create_interface():
     return demo
 
 if __name__ == "__main__":
-    # Create and launch interface
+    print("\n" + "="*70)
+    print("🚀 LAUNCHING DOCUMENT CHATBOT")
+    print("="*70)
+    print("\n📍 Hardware: Intel i7 11th Gen, 16GB RAM, GTX 1660 Ti 6GB")
+    print("🤖 Model: Qwen2.5-7B-Instruct-Q4_K_M (4.68GB)")
+    print("🔗 URL: http://localhost:7860")
+    print("\n⌨️  Press Ctrl+C to stop")
+    print("="*70 + "\n")
+    
     demo = create_interface()
     demo.launch(
         server_name="0.0.0.0",
